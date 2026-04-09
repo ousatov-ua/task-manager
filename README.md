@@ -34,7 +34,7 @@ Two configurable queue sizes + a fixed thread pool = predictable memory usage at
 <dependency>
     <groupId>io.github.ousatov-ua</groupId>
     <artifactId>task-manager</artifactId>
-    <version>1.0.0</version>
+    <version><!-- see latest on Maven Central --></version>
 </dependency>
 ```
 
