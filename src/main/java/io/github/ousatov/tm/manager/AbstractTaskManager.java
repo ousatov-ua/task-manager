@@ -1,15 +1,10 @@
-package com.alus.tools.multithreaded.manager;
+package io.github.ousatov.tm.manager;
 
-import com.alus.tools.multithreaded.vo.StatUnit;
-import com.alus.tools.multithreaded.vo.WorkUnit;
-import com.alus.tools.multithreaded.vo.config.Config;
-import lombok.extern.slf4j.Slf4j;
-
-import javax.annotation.Nonnull;
+import io.github.ousatov.tm.stat.StatisticsTracker;
+import io.github.ousatov.tm.vo.WorkUnit;
+import io.github.ousatov.tm.vo.config.Config;
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -17,19 +12,19 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * TaskManager
  *
- * <p>
- * Manages processing of all units of work. Built on base of limited queue.
+ * <p>Manages processing of all units of work. Built on the base of a limited queue.
  *
  * @author Oleksii Usatov
  */
 @Slf4j
-public class AbstractTaskManager<T extends WorkUnit, R> implements Runnable, Closeable {
+public class AbstractTaskManager<T extends WorkUnit, R> implements Closeable {
     private final Config config;
     private final LinkedBlockingDeque<T> workUnitsDeque;
     private final LimitedQueue<Runnable> tasksDeque;
@@ -37,8 +32,7 @@ public class AbstractTaskManager<T extends WorkUnit, R> implements Runnable, Clo
     private final ExecutorService processorsPool;
     private final ScheduledExecutorService statusExecutor;
     private final ExecutorService taskManagerExecutor;
-    private final AtomicLong totalUnitsOfWorkSubmitted = new AtomicLong();
-    private final Map<String, StatUnit> recordsSubmitted = new LinkedHashMap<>();
+    private final StatisticsTracker stats;
     private volatile boolean finished;
 
     public AbstractTaskManager(Config config, Function<T, R> function) {
@@ -49,17 +43,26 @@ public class AbstractTaskManager<T extends WorkUnit, R> implements Runnable, Clo
         final var nThreads = config.getEventProcessingParallelism();
         this.workUnitsDeque = new LinkedBlockingDeque<>(unitsOfWorkDequeSize);
         this.tasksDeque = new LimitedQueue<>(tasksDequeSize);
-        this.processorsPool = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, tasksDeque);
+        this.processorsPool =
+            new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, tasksDeque);
         this.statusExecutor = Executors.newScheduledThreadPool(1);
-        statusExecutor.scheduleAtFixedRate(() ->
-                log.info("Total values submitted={}, workUnitsDeque size={}, tasksDeque size={}", totalUnitsOfWorkSubmitted.get(),
-                        workUnitsDeque.size(), tasksDeque.size()), 1, 1, TimeUnit.MINUTES);
+        this.stats = new StatisticsTracker(config.getLogForRecordCount());
+        statusExecutor.scheduleAtFixedRate(
+            () ->
+                log.info(
+                    "Total values submitted={}, workUnitsDeque size={}, tasksDeque size={}",
+                    stats.getTotalSubmitted(),
+                    workUnitsDeque.size(),
+                    tasksDeque.size()),
+            1,
+            1,
+            TimeUnit.MINUTES);
         this.taskManagerExecutor = Executors.newFixedThreadPool(1);
-        this.taskManagerExecutor.execute(this);
+        this.taskManagerExecutor.execute(this::dispatch);
     }
 
-    @Override
-    public void run() {
+    @SuppressWarnings("java:S135")
+    private void dispatch() {
         while (true) {
             T workUnit = null;
             try {
@@ -70,59 +73,26 @@ public class AbstractTaskManager<T extends WorkUnit, R> implements Runnable, Clo
                     break;
                 }
                 final var finalWorkUnit = workUnit;
-                processorsPool.submit(() -> logStatistics(finalWorkUnit, function.apply(finalWorkUnit)));
-            } catch (Exception ine) {
-                log.error("Could not process workUnit={}", workUnit, ine);
+                processorsPool.submit(() -> recordStatistics(finalWorkUnit, function.apply(finalWorkUnit)));
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.error("Dispatch interrupted, workUnit={}", workUnit, ie);
+                break;
+            } catch (Exception e) {
+                log.error("Could not process workUnit={}", workUnit, e);
             }
         }
     }
 
+    /**
+     * @return true when the dispatch loop and all task queues are drained
+     */
     public boolean isFinished() {
         return finished && workUnitsDeque.isEmpty() && tasksDeque.isEmpty();
     }
 
     /**
-     * Log statistic for taken workUnit
-     *
-     * @param workUnit {@link WorkUnit}
-     */
-    private void logStatistics(WorkUnit workUnit, R result) {
-        totalUnitsOfWorkSubmitted.incrementAndGet();
-
-        synchronized (this) {
-            var statValue = recordsSubmitted.getOrDefault(workUnit.getType(), StatUnit.builder().build());
-            long currentCount = statValue.getCurrentCount() + 1;
-            long totalCount = statValue.getTotalCount() + 1;
-            long totalErrorCount = statValue.getTotalErrorCount();
-            if (isInError(result)) {
-                totalErrorCount = totalErrorCount + 1;
-            }
-            if (currentCount >= config.getLogForRecordCount()) {
-                log.info("Processed total={}, in error={} records for type={}", totalCount, totalErrorCount,
-                        workUnit.getType());
-                currentCount = 0;
-            }
-            recordsSubmitted.put(workUnit.getType(), StatUnit.builder()
-                    .currentCount(currentCount)
-                    .totalCount(totalCount)
-                    .totalErrorCount(totalErrorCount)
-                    .build()
-            );
-        }
-    }
-
-    /**
-     * Check if processing was marked as failed
-     *
-     * @param result R
-     * @return true if is in error state
-     */
-    protected boolean isInError(R result) {
-        return false;
-    }
-
-    /**
-     * Submit task
+     * Submit a task
      *
      * @param workUnit T
      * @throws InterruptedException exception
@@ -132,30 +102,41 @@ public class AbstractTaskManager<T extends WorkUnit, R> implements Runnable, Clo
     }
 
     /**
-     * Put the last value to the queue and wait all submitted tasks finished
+     * Put the last value to the queue and wait for all submitted tasks to finish.
      *
      * @param lastWorkUnit last unit of work
      */
-    public void wait(T lastWorkUnit) {
+    public void waitForCompletion(T lastWorkUnit) {
         try {
             workUnitsDeque.put(lastWorkUnit);
             while (!isFinished()) {
                 log.info("Waiting for all tasks left the queue");
-                TimeUnit.SECONDS.sleep(10);
+                TimeUnit.SECONDS.sleep(config.getWaitTimeForCheckingFinishedSeconds());
             }
             log.info("All tasks are executed");
         } catch (Exception ine) {
+            Thread.currentThread().interrupt();
             log.error("Exception during finishing", ine);
         }
     }
 
-    /**
-     * Log statistics
-     */
+    /** Log statistics */
     public void logStatistics() {
-        recordsSubmitted.forEach((key, value) -> log.info("Statistics: total={}, in error={} records for type={}",
-                value.getTotalCount(), value.getTotalErrorCount(), key));
-        log.info("Statistics: Total values submitted={}", totalUnitsOfWorkSubmitted.get());
+        stats.logSummary();
+    }
+
+    /**
+     * Check if processing was marked as failed
+     *
+     * @param result R
+     * @return true if is in the error state
+     */
+    protected boolean isInError(R result) {
+        return false;
+    }
+
+    private void recordStatistics(WorkUnit workUnit, R result) {
+        stats.mark(workUnit, isInError(result));
     }
 
     @Override
@@ -163,7 +144,8 @@ public class AbstractTaskManager<T extends WorkUnit, R> implements Runnable, Clo
         try {
             log.info("Waiting for all submitted tasks finished");
             processorsPool.shutdown();
-            var terminated = processorsPool.awaitTermination(
+            var terminated =
+                processorsPool.awaitTermination(
                     config.getWaitTimeForAllTasksFinishedMinute(), TimeUnit.MINUTES);
             log.info("ProcessorsPool is terminated={}", terminated);
             log.info("All submitted tasks finished");
@@ -176,14 +158,14 @@ public class AbstractTaskManager<T extends WorkUnit, R> implements Runnable, Clo
             terminated = taskManagerExecutor.awaitTermination(1, TimeUnit.MINUTES);
             log.info("Task manager is terminated={}", terminated);
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IOException("Cannot close resources", e);
         }
     }
 
     /**
-     * Needed for ThreadPoolExecutor
-     * </p>
-     * Limited queue: executor will wait to submit runnable if queue is full
+     * Needed for ThreadPoolExecutor Limited queue: executor will wait to submit runnable if the queue
+     * is full
      *
      * @author Oleksii Usatov
      */
@@ -193,7 +175,7 @@ public class AbstractTaskManager<T extends WorkUnit, R> implements Runnable, Clo
         }
 
         @Override
-        public boolean offer(@Nonnull E e) {
+        public boolean offer(@NonNull E e) {
 
             // Turn offer() and add() into a blocking calls
             try {

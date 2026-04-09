@@ -1,4 +1,4 @@
-package com.alus.tools.multithreaded.vo;
+package io.github.ousatov.tm.vo;
 
 /**
  * Unit of work
