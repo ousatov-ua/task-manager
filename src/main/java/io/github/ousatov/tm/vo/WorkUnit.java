@@ -6,7 +6,7 @@ package io.github.ousatov.tm.vo;
  * @author Oleksii Usatov
  */
 public interface WorkUnit {
-    WorkUnit getLastUnit();
+  WorkUnit getLastUnit();
 
-    String getType();
+  String getType();
 }

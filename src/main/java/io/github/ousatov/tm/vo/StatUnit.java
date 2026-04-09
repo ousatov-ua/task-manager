@@ -6,5 +6,5 @@ package io.github.ousatov.tm.vo;
  * @author Oleksii Usatov
  */
 public record StatUnit(long currentCount, long totalCount, long totalErrorCount) {
-    public static StatUnit EMPTY = new StatUnit(0, 0, 0);
+  public static StatUnit EMPTY = new StatUnit(0, 0, 0);
 }

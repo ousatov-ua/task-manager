@@ -3,7 +3,7 @@ package io.github.ousatov.tm;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.github.ousatov.tm.manager.AbstractTaskManager;
+import io.github.ousatov.tm.manager.TaskManager;
 import io.github.ousatov.tm.vo.WorkUnit;
 import io.github.ousatov.tm.vo.config.Config;
 import java.io.IOException;
@@ -15,12 +15,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit test for {@link AbstractTaskManager}
+ * Unit test for {@link TaskManager}
  *
  * @author Oleksii Usatov
  */
 @Slf4j
-class AbstractTaskManagerTest {
+class TaskManagerTest {
 
   @Test
   void testManaging() throws IOException {
@@ -81,7 +81,7 @@ class AbstractTaskManagerTest {
     }
   }
 
-  static class TestTaskManager extends AbstractTaskManager<CustomWorkOfUnit, Result> {
+  static class TestTaskManager extends TaskManager<CustomWorkOfUnit, Result> {
 
     public TestTaskManager(Config config, Function<CustomWorkOfUnit, Result> function) {
       super(config, function);
