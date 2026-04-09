@@ -7,7 +7,7 @@
 [![GitHub commits](https://img.shields.io/github/commit-activity/t/ousatov-ua/task-manager)](https://github.com/ousatov-ua/task-manager/commits/main)
 [![GitHub last commit](https://img.shields.io/github/last-commit/ousatov-ua/task-manager)](https://github.com/ousatov-ua/task-manager/commits/main)
 
-A lightweight Java 21 (use task-manager < 3.0.0) /25 (use task-manager >= 3.0.0) library for **parallel task processing with built-in back-pressure**.
+A lightweight Java 21 (use task-manager < 2.0.0) /25 (use task-manager >= 2.0.0) library for **parallel task processing with built-in back-pressure**.
 
 It uses two bounded blocking queues — one for submitted work units and one for the thread pool — so producers never outrun consumers and your application stays safe from `OutOfMemoryError` under load.
 
