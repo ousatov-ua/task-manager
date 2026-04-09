@@ -1,13 +1,11 @@
 # task-manager
 
-<p align="center">
-  <img src="https://img.shields.io/maven-central/v/io.github.ousatov-ua/task-manager?label=Maven%20Central&color=blue" alt="Maven Central"/>
-  <img src="https://img.shields.io/badge/Java-21-orange?logo=openjdk" alt="Java 21"/>
-  <img src="https://img.shields.io/github/license/ousatov-ua/task-manager?color=green" alt="License: MIT"/>
-  <img src="https://github.com/ousatov-ua/task-manager/actions/workflows/maven.yml/badge.svg" alt="Release pipeline"/>
-  <img src="https://img.shields.io/github/commit-activity/t/ousatov-ua/task-manager?label=commits&color=blueviolet" alt="Total commits"/>
-  <img src="https://visitor-badge.laobi.icu/badge?page_id=ousatov-ua.task-manager&title=visitors" alt="Visitors"/>
-</p>
+[![Build](https://github.com/ousatov-ua/task-manager/actions/workflows/maven.yml/badge.svg)](https://github.com/ousatov-ua/task-manager/actions/workflows/maven.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.ousatov-ua/task-manager)](https://central.sonatype.com/artifact/io.github.ousatov-ua/task-manager)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Visitors](https://visitor-badge.laobi.icu/badge?page_id=ousatov-ua.task-manager)](https://github.com/ousatov-ua/task-manager)
+[![GitHub commits](https://img.shields.io/github/commit-activity/t/ousatov-ua/task-manager)](https://github.com/ousatov-ua/task-manager/commits/main)
+[![GitHub last commit](https://img.shields.io/github/last-commit/ousatov-ua/task-manager)](https://github.com/ousatov-ua/task-manager/commits/main)
 
 A lightweight Java 21 library for **parallel task processing with built-in back-pressure**.
 
